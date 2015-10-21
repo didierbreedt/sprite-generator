@@ -47,13 +47,16 @@ class SpriteService
 
     /**
      * @param $name string
-     * @return string
+     * @return mixed
      * @throws \SpriteGenerator\Exception\SpriteException
      */
-    public function getConfigParam($name)
+    public function getConfigParam($name, $default=null)
     {
-        if (!isset($this->config[$this->activeSprite][$name])) {
+        if (!isset($this->config[$this->activeSprite][$name]) AND empty($default)) {
             throw new SpriteException('Sprite config "' . $name . '" is not set.');
+        }
+        else if (!empty($default)) {
+            return $default;
         }
 
         return $this->config[$this->activeSprite][$name];
@@ -120,6 +123,7 @@ class SpriteService
 
         $this->createSpriteImage($images);
         $this->createSpriteCss($images);
+        $this->createSpriteJson($images);
 
         return true;
     }
@@ -129,16 +133,34 @@ class SpriteService
      */
     protected function getSpriteSourceImages()
     {
-        $sourceDir = $this->getConfigParam('inDir');
-        $dh = opendir($sourceDir);
-
         $images = array();
-        while (false !== ($filename = readdir($dh))) {
-            if (!is_file($sourceDir . $filename)) {
-                continue;
+
+        if ( $this->getConfigParam('fileList') ) {
+            foreach ( $this->getConfigParam('fileList') as $fileUri ) {
+                $filename = substr($fileUri, strrpos($fileUri, DIRECTORY_SEPARATOR) + 1);
+                $fileCode = substr($filename, 0, strrpos($filename, '.'));
+                $images[$fileCode]['file'] = $fileUri;
             }
-            $fileCode = substr($filename, 0, strrpos($filename, '.'));
-            $images[$fileCode]['file'] = $sourceDir . $filename;
+        }
+        else {
+            $sourceDir = $this->getConfigParam('inDir');
+            $dh = opendir($sourceDir);
+
+            while ( false !== ($filename = readdir($dh)) ) {
+                if ( !is_file($sourceDir . $filename) ) {
+                    continue;
+                }
+                $fileCode = substr($filename, 0, strrpos($filename, '.'));
+
+                if ( $this->getConfigParam('extensions', false) ) {
+                    $fileExtension = substr($filename, strrpos($filename, '.') + 1);
+                    if ( !in_array($fileExtension, $this->getConfigParam('extensions')) ) {
+                        continue;
+                    }
+                }
+
+                $images[$fileCode]['file'] = $sourceDir . $filename;
+            }
         }
 
         asort($images);
@@ -218,6 +240,28 @@ class SpriteService
 
     /**
      * @param $images
+     * @throws \SpriteGenerator\Exception\SpriteException
+     * @return bool
+     */
+    protected function createSpriteJson($images)
+    {
+        $formatter = $this->getJsonFormatter();
+        $spriteClass = $this->getConfigParam('spriteClass');
+        $spriteImageName = $this->getRelativeSpriteImageUrl($images);
+        $formattedJson = $formatter->format($images, $spriteClass, $spriteImageName);
+
+        $resultJson = $this->getConfigParam('outJson');
+
+        $saved = file_put_contents($resultJson, $formattedJson);
+        if ($saved === false) {
+            throw new SpriteException('Saving JSON failed. Maybe "'.$resultJson.'" does not have write permissions?');
+        }
+
+        return true;
+    }
+
+    /**
+     * @param $images
      * @return string
      */
     protected function getRelativeSpriteImageUrl($images)
@@ -242,6 +286,17 @@ class SpriteService
                 break;
             case 'sass':
                 $formatter = new SassFormatter();
+                break;
+        }
+
+        return $formatter;
+    }
+
+    protected function getJsonFormatter()
+    {
+        switch ($this->getConfigParam('jsonFormat')) {
+            case 'hash':
+                $formatter = new \SpriteGenerator\CssFormatter\JsonHashFormatter();
                 break;
         }
 

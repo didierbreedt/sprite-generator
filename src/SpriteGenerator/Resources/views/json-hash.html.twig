@@ -1,0 +1,7 @@
+{"frames": {
+    {% for key, image in images %}
+    "{{ key }}": {
+        "frame": {"x":{{ image.pos_x }},"y":{{ image.pos_y }},"w":{{ image.width }},"h":{{ image.height }}}
+    } {% if not loop.last %}, {% endif %}
+    {% endfor %}
+}}
