@@ -1,5 +1,5 @@
 Nfq Sprite Generator Bundle
-==================
+============================
 Generate sprite images and stylesheets with plain PHP and GD2 (no 3rd party dependencies)
 
 
